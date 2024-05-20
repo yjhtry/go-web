@@ -5,20 +5,27 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"strings"
+
+	"github.com/yjhtry/go-web/session"
+	_ "github.com/yjhtry/go-web/session/memory"
 )
+
+var globalSessions *session.Manager
+
+// 然后在init函数中初始化
+func init() {
+	globalSessions, _ = session.NewSessionManager("memory", "goSessionId", 3600)
+	go globalSessions.GC()
+}
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
-	fmt.Println(r.Form)
-	fmt.Println("path", r.URL.Path)
-	fmt.Println("scheme", r.URL.Scheme)
+	session := globalSessions.SessionStart(w, r)
 
-	for k, v := range r.Form {
-		fmt.Println("key: ", k)
-		fmt.Println("value: ", strings.Join(v, ""))
-	}
+	sessionValue := session.Get("username")
+
+	fmt.Println("sessionValue: ", sessionValue)
 
 	fmt.Fprintf(w, "Hello go web")
 
@@ -27,13 +34,18 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 func login(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Method: ", r.Method)
 
+	session := globalSessions.SessionStart(w, r)
+
 	if r.Method == "GET" {
 		t, _ := template.ParseFiles("login.gtpl")
 
 		log.Println(t.Execute(w, nil))
 	} else {
+		print("session set username: ", r.Form["username"])
+		session.Set("username", r.FormValue("username"))
 		fmt.Println("username: ", r.FormValue("username"))
 		fmt.Println("password: ", r.FormValue("password"))
+		http.Redirect(w, r, "/", http.StatusFound)
 	}
 }
 
